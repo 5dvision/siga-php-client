@@ -3,7 +3,7 @@
 namespace SigaClient;
 
 use SigaClient\Hashcode\HashcodeDataFile;
-use SigaClient\Exception\SigaException;
+use SigaClient\Exception\SigaApiResponseException;
 use SigaClient\Service\SigaApiClient;
 
 /**
@@ -12,6 +12,14 @@ use SigaClient\Service\SigaApiClient;
  */
 class SigaClient
 {
+
+    /**
+     * Container Id
+     *
+     * @var string
+     */
+    public $containerId;
+
     /**
      * SiGa adapter
      *
@@ -34,49 +42,80 @@ class SigaClient
      *      'url' => 'xxx',
      *      'client' => 'xxx',
      *      'service' => 'xxx',
-     * 		'uuid' => 'xxx',
+     *      'uuid' => 'xxx',
      *      'secret' => 'xxx',
      * ]
      *
      * @return SigaClient
      */
-    public static function create(array $options = [])
+    public static function create(array $options = []) : SigaClient
     {
         return new self($options);
     }
 
-    public function createAsicContainer()
-    {
-        //TODO: Needs functionality
-    }
-
-    public function createHashcodeContainer($files)
+    /**
+     * create hashcode container id
+     *
+     * @param array $files Files to send to create fontainer from
+     *
+     * @return void
+     */
+    public function createHashcodeContainerId(array $files) : void
     {
         $body = [];
         foreach ($files as $file) {
             $body['dataFiles'][] = (new HashcodeDataFile($file['name'], $file['size'], $file['data']))->convert();
         }
         
-        $requestResponse = $this->sigaApiClient->getClient()->request('POST', 'hashcodecontainers', ['json' => $body]);
+        $requestResponse = $this->sigaApiClient->getClient()->request('POST', $this->sigaApiClient::HASHCODE_ENDPOINT, ['json' => $body]);
         
         $response = json_decode($requestResponse->getBody(), true);
 
+        if ($requestResponse->getStatusCode() != 200) {
+            throw new SigaApiResponseException($response['errorMessage']);
+        }
         
+        $this->containerId = $response['containerId'];
+    }
 
+    /**
+     * Create hascode container
+     *
+     * @param array $files Files
+     *
+     * @return string Container Id
+     */
+    public function createHashcodeContainer(array $files) :string
+    {
+        //in separate function, since not sure if I should put separately to some other object.
+        $this->createHashcodeContainerId($files);
 
-        #dump($response);
-        #dd($response);
-
-        //TODO: Create functionality
+        return $this->containerId;
     }
     
-
-    public static function getContainerId()
+    public function prepareSigning(string $containerId, string $certicicateHex) : string
     {
-        if (!isset($_SESSION['containerId'])) {
-            throw new SigaException('There is no container Id');
-        }
+        //TODO: Ask existing signatures(there was sample in SiGa java app)
 
-        return $_SESSION['containerId'];
+        $remoteSigningUri = $this->sigaApiClient->getSigaApiUri($this->sigaApiClient::HASHCODE_ENDPOINT, [$containerId, 'remotesigning']);
+
+        $body = [
+            'signingCertificate' => base64_encode(hex2bin($certicicateHex)),
+            'signatureProfile' => $this->sigaApiClient::SIGNATURE_PROFILE_LT,
+        ];
+
+        $requestResponse = $this->sigaApiClient->getClient()->request('POST', $remoteSigningUri, ['json' => $body]);
+       
+        $response = json_decode($requestResponse->getBody(), true);
+        
+        if ($requestResponse->getStatusCode() != 200) {
+            throw new SigaApiResponseException($response['errorMessage']);
+        }
+        
+        return $this->sigaApiClient->returnJson([
+            'dataToSign' => $response['dataToSign'],
+            'digestAlgorithm' => $response['digestAlgorithm'],
+            'generatedSignatureId' => $response['generatedSignatureId'],
+        ]);
     }
 }

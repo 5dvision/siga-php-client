@@ -7,8 +7,13 @@ use SigaClient\Exception\InvalidSigaParamException;
 class SigaApiClient
 {
     const ASIC_ENDPOINT = 'containers';
-    const HASHCODE_ENDPOINT = 'hashcontainers';
+    const HASHCODE_ENDPOINT = 'hashcodecontainers';
     const RESULT_OK = 'OK';
+    
+    /**
+     * Profile of the signature. Available values LT - TimeStamp based
+     */
+    const SIGNATURE_PROFILE_LT = 'LT';
     
     /**
      * SiGa endpoint API url.
@@ -117,5 +122,32 @@ class SigaApiClient
     public function getClient() : SigaGuzzleClient
     {
         return $this->client;
+    }
+    
+    /**
+     * Generate Siga Api Uri
+     *
+     * @param string $containerEndpoint
+     * @param array $pathSegments
+     *
+     * @return string Api uri
+     */
+    public function getSigaApiUri(string $containerEndpoint, array $pathSegments = []) : string
+    {
+        return  $this->url.'/'.$containerEndpoint.'/'.implode('/', $pathSegments);
+    }
+    
+    /**
+     * Return json header
+     *
+     * @param array $output
+     *
+     * @return string
+     */
+    public function returnJson(array $output = []) : string
+    {
+        header('Content-Type: application/json');
+
+        return json_encode($output);
     }
 }
