@@ -20,7 +20,7 @@ class SigaGuzzleClient extends Guzzle
      *
      * @return void
      */
-    public function __construct(array $sigaOptions, array $config = []) : void
+    public function __construct(array $sigaOptions, array $config = [])
     {
         $stack = new HandlerStack();
         $stack->setHandler(new CurlHandler());

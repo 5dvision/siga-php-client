@@ -3,6 +3,7 @@
 namespace SigaClient\Service;
 
 use SigaClient\Exception\InvalidSigaParamException;
+use Psr\Http\Message\ResponseInterface;
 
 class SigaApiClient
 {
@@ -149,5 +150,73 @@ class SigaApiClient
         header('Content-Type: application/json');
 
         return json_encode($output);
+    }
+    
+    /**
+     * Finalize container remote signing
+     *
+     * @param string $containerEndpoint Container endpoint
+     * @param string $containerId Container Id
+     * @param string $signatureId Signature Id
+     * @param string $signatureHex Signature Hex
+     *
+     * @return array Finalization request response
+     */
+    public function finalizeContainerRemoteSigning(string $containerEndpoint, string $containerId, string $signatureId, string $signatureHex) : array
+    {
+        $body = [
+            'signatureValue' => base64_encode(hex2bin($signatureHex)),
+        ];
+
+        $requestResponse = $this->client->request(
+            'PUT',
+            $this->getSigaApiUri($containerEndpoint, [$containerId, 'remotesigning', $signatureId]),
+            ['json' => $body]
+        );
+       
+        return json_decode($requestResponse->getBody(), true);
+    }
+    
+    /**
+     * Validate container
+     *
+     * @param string $containerEndpoint Container endpoint
+     * @param string $containerId Container Id
+     *
+     * @return array Validation response
+     */
+    public function validateContainer(string $containerEndpoint, string $containerId) : array
+    {
+        $requestResponse = $this->client->request('GET', $this->getSigaApiUri($containerEndpoint, [$containerId, 'validationreport']));
+        
+        return json_decode($requestResponse->getBody(), true);
+    }
+    
+    /**
+     * Delete container
+     *
+     * @param string $containerEndpoint Container endpoint
+     * @param string $containerId Container Id
+     *
+     * @return ResponseInterface
+     */
+    public function deleteContainer(string $containerEndpoint, string $containerId) : ResponseInterface
+    {
+        return $this->client->request('DELETE', $this->getSigaApiUri($containerEndpoint, [$containerId]));
+    }
+    
+    /**
+     * Get signed container
+     *
+     * @param string $containerEndpoint Container endpoint
+     * @param string $containerId Container Id
+     *
+     * @return array Base64 encoded container
+     */
+    public function getContainer(string $containerEndpoint, string $containerId) : array
+    {
+        $requestResponse = $this->client->request('GET', $this->getSigaApiUri($containerEndpoint, [$containerId]));
+        
+        return json_decode($requestResponse->getBody(), true);
     }
 }
