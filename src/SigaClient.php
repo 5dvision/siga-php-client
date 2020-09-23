@@ -14,8 +14,18 @@ use SigaClient\Service\SigaApiClient;
  */
 class SigaClient
 {
+    /**
+     * HASCODE container type
+     *
+     * @var string
+     */
     const CONTAINER_TYPE_HASHCODE = 'HASHCODE';
 
+    /**
+     * ASIC container type
+     *
+     * @var string
+     */
     const CONTAINER_TYPE_ASIC = 'ASIC';
 
     /**
@@ -94,6 +104,8 @@ class SigaClient
      *
      * @param array $files Files
      *
+     * @throws SigaApiResponseException
+     *
      * @return string Container Id
      */
     private function createHashcodeContainer(array $files) : string
@@ -114,6 +126,16 @@ class SigaClient
         return $this->containerId = $response['containerId'];
     }
     
+    /**
+     * Prepare signing process
+     *
+     * @param string $certicicateHex Certificate in hex format
+     *
+     * @throws ContainerIdException If containerId is missing
+     * @throws SigaApiResponseException If remotesigning response is not with header 200
+     *
+     * @return string json encoded array
+     */
     public function prepareSigning(string $certicicateHex) : string
     {
         //TODO: Ask existing signatures(there was sample in SiGa java app)
@@ -145,7 +167,19 @@ class SigaClient
         ]);
     }
     
-    public function finalizeSigning(string $signatureId, string $signatureHex)
+    /**
+     * Finalize signing process
+     *
+     * @param string $signatureId Signature Id
+     * @param string $signatureHex Signature in hex format
+     * @param array $files File names with paths
+     *
+     * @throws ContainerIdException If containerId is missing
+     * @throws SigaApiResponseException If finalize response is content is not not self::RESULT_OK
+     *
+     * @return void
+     */
+    public function finalizeSigning(string $signatureId, string $signatureHex, array $files) : void
     {
         if (!$this->containerId) {
             throw new ContainerIdException();
@@ -154,27 +188,61 @@ class SigaClient
         $response = $this->sigaApiClient->finalizeContainerRemoteSigning($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId, $signatureId, $signatureHex);
         
         if ($response['result'] === $this->sigaApiClient::RESULT_OK) {
-            $this->endContainerFlow();
+            $this->endContainerFlow($files);
         } else {
             throw new SigaApiResponseException($response['errorMessage']);
         }
     }
     
-    private function endContainerFlow()
+    /**
+     * End container flow
+     *
+     * @param array $files File names with paths
+     *
+     * @return void
+     */
+    private function endContainerFlow(array $files) : void
     {
         $this->doContainerValidation();
         
-        //TODO: This response is going to be zip file with meta-inf etc
-        $container = $this->sigaApiClient->getContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
+        $siGaContainer = $this->sigaApiClient->getContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
+        
+        $this->createContainerWithFiles(base64_decode($siGaContainer['container']), $files);
+        
 
-        //TODO: Remove tmp uploaded files
         $this->deleteContainer();
+    }
+    
+    /**
+     * Create hascode container with files and save it to disk
+     *
+     * @param string $sigaZipContainer SiGa Zip container
+     * @param array $files File names with paths
+     *
+     * @return void
+     */
+    private function createContainerWithFiles(string $sigaZipContainer, array $files) : void
+    {
+        $uploadDirectory = dirname(array_values($files)[0]);
+
+        $containerName = $this->containerId.'.asice';
+        $containerWithFullPath = $uploadDirectory . '/' . $containerName;
+        
+        //Letsa save file to disk
+        file_put_contents($containerWithFullPath, $sigaZipContainer);
+ 
+        $zip = new \ZipArchive();
+        $zip->open($containerWithFullPath);
+        foreach ($files as $filename => $path) {
+            $zip->addFile($path, $filename);
+        }
+        $zip->close();
     }
     
     /**
      * Validate container
      *
-     * @throws SigaApiResponseException
+     * @throws SigaApiResponseException If one of signatures is not valid
      *
      * @return void
      */
@@ -192,7 +260,7 @@ class SigaClient
      *
      * @return void
      */
-    private function deleteContainer()
+    private function deleteContainer() : void
     {
         $this->sigaApiClient->deleteContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
     }

@@ -63,7 +63,7 @@ class HashToSign
      */
     public function getHash(string $algo) : string
     {
-        $this->calcHash($algo);
+        $this->calculateHash($algo);
         
         return $this->hash;
     }
