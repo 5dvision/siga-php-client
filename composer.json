@@ -1,17 +1,25 @@
 {
     "name": "5dvision/siga-php-client",
     "description": "SiGa php client",
-    "homepage": "https://5dvision.ee",
+	"homepage": "https://5dvision.ee",
+	"keywords": ["digidoc", "hashcode-signing", "digital-signing", "digisign","signing", "signature-gateway", "siga"],
     "type": "library",
     "license": "MIT",
     "support": {
         "issues": "https://github.com/5dvision/siga-php-client/issues",
         "source": "https://github.com/5dvision/siga-php-client"
     },
-    "authors": [{
+    "authors": [
+		{
+			"name": "5D Vision",
+			"email": "info@5dvision.ee",
+			"homepage": "http://5dvision.ee"
+		},
+		{
         "name": "Kullar Kert",
         "email": "kullar.kert@gmail.com"
-    }],
+		}
+	],
     "minimum-stability": "dev",
     "require": {
 		"php": "^7.2.5",
