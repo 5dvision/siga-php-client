@@ -104,8 +104,6 @@ class SigaClient
      *
      * @param array $files Files
      *
-     * @throws SigaApiResponseException
-     *
      * @return string Container Id
      */
     private function createHashcodeContainer(array $files) : string
@@ -115,13 +113,7 @@ class SigaClient
             $body['dataFiles'][] = (new HashcodeDataFile($file['name'], $file['size'], $file['data']))->convert();
         }
         
-        $requestResponse = $this->sigaApiClient->getClient()->request('POST', $this->sigaApiClient::HASHCODE_ENDPOINT, ['json' => $body]);
-        
-        $response = json_decode($requestResponse->getBody(), true);
-
-        if ($requestResponse->getStatusCode() != 200) {
-            throw new SigaApiResponseException($response['errorMessage']);
-        }
+        $response = $this->sigaApiClient->createHascodeContainer($body);
         
         return $this->containerId = $response['containerId'];
     }
@@ -132,39 +124,61 @@ class SigaClient
      * @param string $certicicateHex Certificate in hex format
      *
      * @throws ContainerIdException If containerId is missing
-     * @throws SigaApiResponseException If remotesigning response is not with header 200
      *
-     * @return string json encoded array
+     * @return string Prepared parts
      */
-    public function prepareSigning(string $certicicateHex) : string
+    public function prepareSigning(string $certicicateHex) : array
     {
         //TODO: Ask existing signatures(there was sample in SiGa java app)
-        
+
         if (!$this->containerId) {
             throw new ContainerIdException();
         }
-
-        $remoteSigningUri = $this->sigaApiClient->getSigaApiUri($this->sigaApiClient::HASHCODE_ENDPOINT, [$this->containerId, 'remotesigning']);
-
-        $body = [
-            'signingCertificate' => base64_encode(hex2bin($certicicateHex)),
-            'signatureProfile' => $this->sigaApiClient::SIGNATURE_PROFILE_LT,
-        ];
-
-        $requestResponse = $this->sigaApiClient->getClient()->request('POST', $remoteSigningUri, ['json' => $body]);
-       
-        $response = json_decode($requestResponse->getBody(), true);
         
-        if ($requestResponse->getStatusCode() != 200) {
-            throw new SigaApiResponseException($response['errorMessage']);
-        }
+        $response = $this->sigaApiClient->startSigning($this->containerId, $certicicateHex);
         
-        return $this->sigaApiClient->returnJson([
+        return [
             'dataToSign' => $response['dataToSign'],
             'dataToSignHash' => base64_encode(hash($response['digestAlgorithm'], base64_decode($response['dataToSign']), true)),
             'digestAlgorithm' => $response['digestAlgorithm'],
             'generatedSignatureId' => $response['generatedSignatureId'],
-        ]);
+        ];
+    }
+    
+    /**
+     * Start mobile signing process
+     *
+     * @link @https://github.com/open-eid/SiGa/wiki/Hashcode-API-description#start-mobile-id-signing
+     *
+     * @param array $requestParams Request params
+     *
+     * @return array Response
+     */
+    public function prepareMobileSigning(array $requestParams) : array
+    {
+        if (!$this->containerId) {
+            throw new ContainerIdException();
+        }
+        
+        $response = $this->sigaApiClient->startMobileSigning($this->containerId, $requestParams);
+        
+        return $response;
+    }
+    
+    /**
+     * Get mobile ID signing status
+     *
+     * @param string $signatureId Signature Id
+     *
+     * @return array Response
+     */
+    public function getMobileSigningStatus(string $signatureId) : array
+    {
+        if (!$this->containerId) {
+            throw new ContainerIdException();
+        }
+        
+        return $this->sigaApiClient->getMobileSigningStatus($this->containerId, $signatureId);
     }
     
     /**
@@ -175,7 +189,6 @@ class SigaClient
      * @param array $files File names with paths
      *
      * @throws ContainerIdException If containerId is missing
-     * @throws SigaApiResponseException If finalize response is content is not not self::RESULT_OK
      *
      * @return void
      */
@@ -187,10 +200,8 @@ class SigaClient
         
         $response = $this->sigaApiClient->finalizeContainerRemoteSigning($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId, $signatureId, $signatureHex);
         
-        if ($response['result'] === $this->sigaApiClient::RESULT_OK) {
+        if ($response['result'] !== $this->sigaApiClient::RESULT_OK) {
             $this->endContainerFlow($files);
-        } else {
-            throw new SigaApiResponseException($response['errorMessage']);
         }
     }
     
@@ -201,7 +212,7 @@ class SigaClient
      *
      * @return void
      */
-    private function endContainerFlow(array $files) : void
+    public function endContainerFlow(array $files) : void
     {
         $this->doContainerValidation();
         
@@ -248,11 +259,24 @@ class SigaClient
      */
     private function doContainerValidation() : void
     {
-        $response = $this->sigaApiClient->validateContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
+        $response = $this->getContainerValidation();
 
-        if ($response['validationConclusion']['validSignaturesCount'] != $response['validationConclusion']['signaturesCount']) {
+        if ($response['validSignaturesCount'] != $response['signaturesCount']) {
             throw new SigaApiResponseException('One of signatures is not valid!');
         }
+    }
+    
+    /**
+     * Get SIVA container validation report
+     *
+     *
+     * @return array
+     */
+    public function getContainerValidation() : array
+    {
+        $response = $this->sigaApiClient->getContainerValidation($this->containerId);
+
+        return $response['validationConclusion'];
     }
     
     /**
@@ -262,6 +286,54 @@ class SigaClient
      */
     private function deleteContainer() : void
     {
-        $this->sigaApiClient->deleteContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
+        $this->sigaApiClient->deleteContainer($this->containerId);
+    }
+    
+    /**
+     * Upload hashcode container
+     *
+     * @param string $fileString Base 64 encoded container
+     *
+     * @return string Container Id
+     */
+    public function uploadHashcodeContainer(string $fileString) : string
+    {
+        $response = $this->sigaApiClient->uploadContainer(base64_encode($fileString));
+
+        return $this->containerId = $response['containerId'];
+    }
+    
+    /**
+     * Get container data files
+     *
+     * @return array Files list
+     */
+    public function getDataFilesList() : array
+    {
+        $response = $this->sigaApiClient->getContainerFiles($this->containerId);
+
+        return $response['dataFiles'];
+    }
+
+    /**
+     * Get container signatures
+     *
+     * @return array Signatures list
+     */
+    public function getSignaturesList()
+    {
+        $response = $this->sigaApiClient->getContainerSignatures($this->containerId);
+
+        return $response['signatures'];
+    }
+    
+    /**
+     * Get signature info
+     *
+     * @return array Signature info
+     */
+    public function getSignatureInfo(string $signatureId)
+    {
+        return $this->sigaApiClient->getSignatureInfo($this->containerId, $signatureId);
     }
 }

@@ -3,7 +3,9 @@
 namespace SigaClient\Service;
 
 use SigaClient\Exception\InvalidSigaParamException;
+use SigaClient\Exception\SigaApiResponseException;
 use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\Psr7\Response;
 
 class SigaApiClient
 {
@@ -57,6 +59,13 @@ class SigaApiClient
      * @var \SigaGuzzleClient
      */
     private $client;
+    
+    /**
+     * Last guzzle response
+     *
+     * @var \Response
+     */
+    private $lastResponse = null;
     
     /**
      * @param array $sigaOptions Siga configuration settings.
@@ -120,7 +129,7 @@ class SigaApiClient
      *
      * @return SigaGuzzleClient
      */
-    public function getClient() : SigaGuzzleClient
+    public function guzzle() : SigaGuzzleClient
     {
         return $this->client;
     }
@@ -139,19 +148,100 @@ class SigaApiClient
     }
     
     /**
-     * Return json header
+     * Create hascode container
      *
-     * @param array $output
+     * @param array $body Request body params
      *
-     * @return string
+     * @return array Response
      */
-    public function returnJson(array $output = []) : string
+    public function createHascodeContainer(array $body) : array
     {
-        header('Content-Type: application/json');
-
-        return json_encode($output);
+        $requestResponse = $this->client->post(self::HASHCODE_ENDPOINT, ['json' => $body]);
+        
+        return $this->decodeResponse($requestResponse);
     }
     
+    /**
+     * Upload container
+     *
+     * @param string $file Base 64 encoded file content
+     *
+     * @return array Response
+     */
+    public function uploadContainer(string $file) : array
+    {
+        $uri = $this->getSigaApiUri('upload', [self::HASHCODE_ENDPOINT]);
+        
+        $body = [
+            'container' => $file,
+        ];
+
+        $requestResponse = $this->sigaApiClient->post($uri, ['json' => $body]);
+        
+        return $this->decodeResponse($requestResponse);
+    }
+    
+    /**
+     * Start remote signing process
+     *
+     * @param string $containerId Container Id
+     * @param string $certicicateHex Certificate in hex format
+     *
+     * @return string Prepared parts
+     */
+    public function startSigning(string $containerId, string $certicicateHex) : array
+    {
+        $uri = $this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'remotesigning']);
+
+        $body = [
+            'signingCertificate' => base64_encode(hex2bin($certicicateHex)),
+            'signatureProfile' => self::SIGNATURE_PROFILE_LT,
+        ];
+
+        $requestResponse = $this->sigaApiClient->getClient()->post($uri, ['json' => $body]);
+        
+        return $this->decodeResponse($requestResponse);
+    }
+    
+    /**
+     * Start mobile signing process
+     *
+     * @link @https://github.com/open-eid/SiGa/wiki/Hashcode-API-description#start-mobile-id-signing
+     *
+     * @param string $containerId Container Id
+     * @param array $requestParams Mobile Id request params.
+     *
+     * @return array Response
+     */
+    public function startMobileSigning(string $containerId, array $requestParams) : array
+    {
+        $requestParams['signatureProfile'] = self::SIGNATURE_PROFILE_LT;
+        
+        $requestResponse = $this->client->post(
+            $this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'mobileidsigning']),
+            ['json' => $requestParams]
+        );
+        
+        return $this->decodeResponse($requestResponse);
+    }
+
+    /**
+     * Get mobile ID signing status
+     *
+     * @param string $containerId Container Id
+     * @param string $signatureId Signature Id
+     *
+     * @return array Response
+     */
+    public function getMobileSigningStatus(string $containerId, string $signatureId) : array
+    {
+        $requestResponse = $this->client->get(
+            $this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'mobileidsigning', $signatureId, 'status'])
+        );
+        
+        return $this->decodeResponse($requestResponse);
+    }
+
     /**
      * Finalize container remote signing
      *
@@ -168,41 +258,38 @@ class SigaApiClient
             'signatureValue' => base64_encode(hex2bin($signatureHex)),
         ];
 
-        $requestResponse = $this->client->request(
-            'PUT',
+        $requestResponse = $this->client->put(
             $this->getSigaApiUri($containerEndpoint, [$containerId, 'remotesigning', $signatureId]),
             ['json' => $body]
         );
-       
-        return json_decode($requestResponse->getBody(), true);
+        
+        return $this->decodeResponse($requestResponse);
     }
     
     /**
      * Validate container
      *
-     * @param string $containerEndpoint Container endpoint
      * @param string $containerId Container Id
      *
      * @return array Validation response
      */
-    public function validateContainer(string $containerEndpoint, string $containerId) : array
+    public function getContainerValidation(string $containerId) : array
     {
-        $requestResponse = $this->client->request('GET', $this->getSigaApiUri($containerEndpoint, [$containerId, 'validationreport']));
+        $requestResponse = $this->client->get($this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'validationreport']));
         
-        return json_decode($requestResponse->getBody(), true);
+        return $this->decodeResponse($requestResponse);
     }
     
     /**
      * Delete container
      *
-     * @param string $containerEndpoint Container endpoint
      * @param string $containerId Container Id
      *
      * @return ResponseInterface
      */
-    public function deleteContainer(string $containerEndpoint, string $containerId) : ResponseInterface
+    public function deleteContainer(string $containerId) : ResponseInterface
     {
-        return $this->client->request('DELETE', $this->getSigaApiUri($containerEndpoint, [$containerId]));
+        return $this->client->delete($this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId]));
     }
     
     /**
@@ -215,8 +302,83 @@ class SigaApiClient
      */
     public function getContainer(string $containerEndpoint, string $containerId) : array
     {
-        $requestResponse = $this->client->request('GET', $this->getSigaApiUri($containerEndpoint, [$containerId]));
+        $requestResponse = $this->client->get($this->getSigaApiUri($containerEndpoint, [$containerId]));
         
-        return json_decode($requestResponse->getBody(), true);
+        return $this->decodeResponse($requestResponse);
+    }
+    
+    /**
+     * Get signed container data files list
+     *
+     * @param string $containerId Container Id
+     *
+     * @return array Files list
+     */
+    public function getContainerFiles(string $containerId) : array
+    {
+        $requestResponse = $this->client->get($this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'datafiles']));
+        
+        return $this->decodeResponse($requestResponse);
+    }
+
+    /**
+     * Get signed container signatures list
+     *
+     * @param string $containerId Container Id
+     *
+     * @return array Signatures list
+     */
+    public function getContainerSignatures(string $containerId) : array
+    {
+        $requestResponse = $this->client->get($this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'signatures']));
+        
+        return $this->decodeResponse($requestResponse);
+    }
+    
+    /**
+     * Get signed container signature
+     *
+     * @param string $containerId Container Id
+     * @param string $signatureId Signature Id
+     *
+     * @return array Signature info
+     */
+    public function getSignatureInfo(string $containerId, string $signatureId) : array
+    {
+        $requestResponse = $this->client->get($this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'signatures', $signatureId]));
+        
+        return $this->decodeResponse($requestResponse);
+    }
+
+    /**
+     * Json decode guzzle request
+     *
+     * @param Response $response
+     *
+     * @throws SigaApiResponseException If there is errorMessage
+     *
+     * @return array Query response
+     */
+    private function decodeResponse(Response $response) : array
+    {
+        $this->lastResponse = $response;
+
+        $responseBody = json_decode($this->lastResponse->getBody(), true);
+        
+        if (isset($responseBody['errorMessage'])) {
+            throw new SigaApiResponseException($responseBody['errorMessage'], $this->lastResponse->getStatusCode());
+        }
+
+        return $responseBody;
+    }
+    
+    /**
+     * Get ast guzzle request response
+     *
+     * @return Response|null
+     */
+    public function getLastResponse() : ?Response
+    {
+        return $this->lastResponse;
     }
 }
