@@ -5,6 +5,7 @@ namespace SigaClient;
 use SigaClient\Exception\ContainerIdException;
 use SigaClient\Exception\InvalidSigaParamException;
 use SigaClient\Exception\SigaApiResponseException;
+use SigaClient\Hashcode\HashcodeContainer;
 use SigaClient\Hashcode\HashcodeDataFile;
 use SigaClient\Service\SigaApiClient;
 
@@ -41,6 +42,13 @@ class SigaClient
      * @var \SigaApiClient
      */
     private $sigaApiClient;
+    
+    /**
+     * Container extension bdoc or asice
+     *
+     * @var string
+     */
+    private $extension = 'asice';
 
     /**
      * SiGa client is initiated
@@ -66,6 +74,11 @@ class SigaClient
     public static function create(array $options = []) : SigaClient
     {
         return new self($options);
+    }
+    
+    public function setExtension($ext)
+    {
+        $this->extension = $ext;
     }
     
     /**
@@ -116,6 +129,18 @@ class SigaClient
         $response = $this->sigaApiClient->createHascodeContainer($body);
         
         return $this->containerId = $response['containerId'];
+    }
+    
+    /**
+     * Get base 64 decoded container content
+     *
+     * @return void
+     */
+    public function getContainer() : string
+    {
+        $response = $this->sigaApiClient->getContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
+        
+        return base64_decode($response['container']);
     }
     
     /**
@@ -186,23 +211,18 @@ class SigaClient
      *
      * @param string $signatureId Signature Id
      * @param string $signatureHex Signature in hex format
-     * @param array $files File names with paths
      *
      * @throws ContainerIdException If containerId is missing
      *
-     * @return void
+     * @return Response
      */
-    public function finalizeSigning(string $signatureId, string $signatureHex, array $files) : void
+    public function finalizeSigning(string $signatureId, string $signatureHex) : array
     {
         if (!$this->containerId) {
             throw new ContainerIdException();
         }
         
-        $response = $this->sigaApiClient->finalizeContainerRemoteSigning($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId, $signatureId, $signatureHex);
-        
-        if ($response['result'] !== $this->sigaApiClient::RESULT_OK) {
-            $this->endContainerFlow($files);
-        }
+        return $this->sigaApiClient->finalizeContainerRemoteSigning($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId, $signatureId, $signatureHex);
     }
     
     /**
@@ -215,11 +235,15 @@ class SigaClient
     public function endContainerFlow(array $files) : void
     {
         $this->doContainerValidation();
+
+        /* Trying elegant way to add files to container
+        $hashcodeContainer =
+            (new HashcodeContainer(sys_get_temp_dir().'/'.$this->containerId.'.asice'))
+            ->addFilesToContainer($this->getContainer(), $files)
+            ->saveContainerTo();
+        */
         
-        $siGaContainer = $this->sigaApiClient->getContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
-        
-        $this->createContainerWithFiles(base64_decode($siGaContainer['container']), $files);
-        
+        $this->createContainerWithFiles($this->getContainer(), $files);
 
         $this->deleteContainer();
     }
@@ -227,19 +251,21 @@ class SigaClient
     /**
      * Create hascode container with files and save it to disk
      *
+     * TODO: deprecated and should not be used in furure. Create more elegant way to do it
+     *
      * @param string $sigaZipContainer SiGa Zip container
      * @param array $files File names with paths
      *
      * @return void
      */
-    private function createContainerWithFiles(string $sigaZipContainer, array $files) : void
+    public function createContainerWithFiles(string $createdPath, string $sigaZipContainer, array $files) : void
     {
         $uploadDirectory = dirname(array_values($files)[0]);
 
-        $containerName = $this->containerId.'.asice';
+        $containerName = $this->containerId . '.' . $this->extension;
         $containerWithFullPath = $uploadDirectory . '/' . $containerName;
         
-        //Letsa save file to disk
+        //Lets save file to disk
         file_put_contents($containerWithFullPath, $sigaZipContainer);
  
         $zip = new \ZipArchive();

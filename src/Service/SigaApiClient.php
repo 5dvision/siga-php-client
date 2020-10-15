@@ -9,12 +9,30 @@ use GuzzleHttp\Psr7\Response;
 
 class SigaApiClient
 {
+    /**
+     * ASIC container endpoint.
+     *
+     * @var string
+     */
     const ASIC_ENDPOINT = 'containers';
+    
+    /**
+     * HASCODE container endpoint.
+     *
+     * @var string
+     */
     const HASHCODE_ENDPOINT = 'hashcodecontainers';
+    
+    
     const RESULT_OK = 'OK';
     
     /**
-     * Profile of the signature. Available values LT - TimeStamp based
+     * Profile of the signature.
+     *
+     * LT - TimeStamp based
+     * LT_TM - TimeMark based
+     *
+     * @var string
      */
     const SIGNATURE_PROFILE_LT = 'LT';
     
@@ -63,7 +81,7 @@ class SigaApiClient
     /**
      * Last guzzle response
      *
-     * @var \Response
+     * @var \Response|null
      */
     private $lastResponse = null;
     
@@ -176,7 +194,7 @@ class SigaApiClient
             'container' => $file,
         ];
 
-        $requestResponse = $this->sigaApiClient->post($uri, ['json' => $body]);
+        $requestResponse = $this->client->post($uri, ['json' => $body]);
         
         return $this->decodeResponse($requestResponse);
     }
@@ -198,7 +216,7 @@ class SigaApiClient
             'signatureProfile' => self::SIGNATURE_PROFILE_LT,
         ];
 
-        $requestResponse = $this->sigaApiClient->getClient()->post($uri, ['json' => $body]);
+        $requestResponse = $this->client->post($uri, ['json' => $body]);
         
         return $this->decodeResponse($requestResponse);
     }

@@ -5,14 +5,14 @@ namespace SigaClient\Hashcode;
 class HashToSign
 {
     /**
-     * Hash
+     * Hash.
      *
      * @var string
      */
     private $hash;
     
     /**
-     * Content from to create hash
+     * Content from to create hash.
      *
      * @var string
      */

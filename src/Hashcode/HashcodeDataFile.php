@@ -9,7 +9,7 @@ class HashcodeDataFile
      *
      * @var string
      */
-    private string $fileName;
+    private $fileName;
     
     /**
      * Filesize.
@@ -19,18 +19,26 @@ class HashcodeDataFile
     private $fileSize;
     
     /**
+     * Filedata.
+     *
+     * @var string
+     */
+    private $fileData;
+    
+    
+    /**
      * File sha256 hash.
      *
      * @var string
      */
-    private string $fileHash256;
+    private $fileHash256;
     
     /**
      * File sha512 hash.
      *
      * @var string
      */
-    private string $fileHash512;
+    private $fileHash512;
 
     /**
      * Class constructor
@@ -45,11 +53,42 @@ class HashcodeDataFile
     {
         $this->fileName = $fileName;
         $this->fileSize = $fileSize;
+        $this->fileData = $fileData;
 
-        $hashToSign = new HashToSign($fileData);
+        $hashToSign = new HashToSign($this->fileData);
 
         $this->fileHash256 = $hashToSign->calculateHash('sha256')->getHashInBase64();
         $this->fileHash512 = $hashToSign->calculateHash('sha512')->getHashInBase64();
+    }
+    
+    /**
+     * Get filename
+     *
+     * @return string
+     */
+    public function getName() :string
+    {
+        return $this->fileName;
+    }
+
+    /**
+     * Get file size
+     *
+     * @return int
+     */
+    public function getSize() : int
+    {
+        return $this->fileSize;
+    }
+    
+    /**
+     * Get file content
+     *
+     * @return string
+     */
+    public function getContent() : string
+    {
+        return $this->fileData;
     }
 
     /**
