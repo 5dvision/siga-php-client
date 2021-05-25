@@ -399,4 +399,78 @@ class SigaApiClient
     {
         return $this->lastResponse;
     }
+
+	/**
+     * Get Smart-ID certificate choice
+     *
+     * @param string $containerId Container Id
+     * @param array $requestParams Smart-ID request params.
+     *
+     * @return array Response
+     */
+    public function getSmartIdCertificateChoice(string $containerId, array $requestParams): array
+    {
+        $requestResponse = $this->client->post(
+            $this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'smartidsigning', 'certificatechoice']),
+            ['json' => $requestParams]
+        );
+        
+        return $this->decodeResponse($requestResponse);
+    }
+
+    /**
+     * Get Smart ID certificate choice status
+     *
+     * @param string $containerId Container Id
+     * @param string $certificate Certificate
+     *
+     * @return array Response
+     */
+    public function getSmartIdCertificateChoiceStatus(string $containerId, string $certificate): array
+    {
+        $requestResponse = $this->client->get(
+            $this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'smartidsigning', 'certificatechoice', $certificate, 'status'])
+        );
+        
+        return $this->decodeResponse($requestResponse);
+    }
+
+    /**
+     * Start Smart-ID signing process
+     *
+     * @link @https://github.com/open-eid/SiGa/wiki/Hashcode-API-description#smart-id-signing
+     *
+     * @param string $containerId Container Id
+     * @param array $requestParams Mobile Id request params.
+     *
+     * @return array Response
+     */
+    public function startSmartIdSigning(string $containerId, array $requestParams) : array
+    {
+        $requestParams['signatureProfile'] = self::SIGNATURE_PROFILE_LT;
+        
+        $requestResponse = $this->client->post(
+            $this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'smartidsigning']),
+            ['json' => $requestParams]
+        );
+        
+        return $this->decodeResponse($requestResponse);
+    }
+
+    /**
+     * Get Smart-ID signing status
+     *
+     * @param string $containerId Container Id
+     * @param string $signatureId Signature Id
+     *
+     * @return array Response
+     */
+    public function getSmartIdSigningStatus(string $containerId, string $signatureId) : array
+    {
+        $requestResponse = $this->client->get(
+            $this->getSigaApiUri(self::HASHCODE_ENDPOINT, [$containerId, 'smartidsigning', $signatureId, 'status'])
+        );
+        
+        return $this->decodeResponse($requestResponse);
+    }
 }

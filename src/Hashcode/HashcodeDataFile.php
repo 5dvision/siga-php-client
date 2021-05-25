@@ -90,6 +90,26 @@ class HashcodeDataFile
     {
         return $this->fileData;
     }
+    
+    /**
+     * Get file sha256 hash
+     *
+     * @return string File hash
+     */
+    public function getHashSha256() : string
+    {
+        return $this->fileHash256;
+    }
+
+    /**
+     * Get file sha512 hash
+     *
+     * @return string File hash
+     */
+    public function getHashSha512() : string
+    {
+        return $this->fileHash512;
+    }
 
     /**
      * Convert File hashcode to SiGa format

@@ -54,13 +54,57 @@ class HashcodeContainer
 
         return $this;
     }
+    
+    /**
+     * Checks if given container is hashcode container or not
+     *
+     * @return boolean
+     */
+    public function isHashcodeContainer() : bool
+    {
+        $zip = new \ZipArchive();
+        $zip->open($this->filename);
+        
+        return $zip->locateName('META-INF/hashcodes-sha256.xml') !== false;
+    }
+    
+    /**
+     * Get hashcode container without data files
+     *
+     * @return HashcodeContainer
+     */
+    public function getContainerWithoutFiles() : HashcodeContainer
+    {
+        $zip = new \ZipArchive();
+        $zip->open($this->filename);
 
+        foreach ($this->files as $file) {
+            $zip->deleteName($file->getName());
+        }
+
+        $zip->close();
+
+        return $this;
+    }
+    
     /**
      * Get container datafiles list
      *
      * @return array
      */
     public function getDataFiles() : array
+    {
+        $this->loadFilesFromContainer();
+
+        return $this->files;
+    }
+
+    /**
+     * Load container datafiles to files variable
+     *
+     * @return array
+     */
+    public function loadFilesFromContainer() : HashcodeContainer
     {
         $zip = new \ZipArchive();
         $zip->open($this->filename);
@@ -77,7 +121,7 @@ class HashcodeContainer
 
         $zip->close();
 
-        return $this->files;
+        return $this;
     }
 
     /**
@@ -145,6 +189,55 @@ class HashcodeContainer
     }
 
     /**
+     * Add hascode files to container
+     *
+     * @return HashcodeContainer
+     */
+    public function addHashcodeFiles() : HashcodeContainer
+    {
+        $zip = new \ZipArchive();
+        $zip->open($this->filename);
+
+        $zip->addFromString('META-INF/hashcodes-sha256.xml', $this->createHashcodeXml(256));
+        $zip->addFromString('META-INF/hashcodes-sha512.xml', $this->createHashcodeXml(512));
+
+        $zip->close();
+
+        return $this;
+    }
+
+    /**
+     * Create hashcode XML contents
+     *
+     * @param integer $hashFormat Hascode format 256 or 512
+     *
+     * @return string XML file content
+     */
+    private function createHashcodeXml(int $hashFormat) : string
+    {
+        $xml = new \DOMDocument("1.0", "UTF-8");
+
+        $hashcodes = $xml->createElement('hashcodes');
+        $hashcodes = $xml->appendChild($hashcodes);
+
+        foreach ($this->files as $file) {
+            $entry = $xml->createElement('file-entry');
+
+            $entry->setAttribute('full-path', $file->getName());
+            $entry->setAttribute('size', $file->getSize());
+
+            if ($hashFormat == 256) {
+                $entry->setAttribute('hash', $file->getHashSha256());
+            } elseif ($hashFormat == 512) {
+                $entry->setAttribute('hash', $file->getHashSha512());
+            }
+            $hashcodes->appendChild($entry);
+        }
+
+        return $xml->saveXML();
+    }
+
+    /**
      * Save container to file system
      *
      * @return bool Was successful
@@ -167,7 +260,7 @@ class HashcodeContainer
      *
      * @return bool Was successful or not
      */
-    public function saveContainerWithFiles() :bool
+    public function saveContainerWithFiles() : bool
     {
         if (!$this->saveContainer()) {
             throw new SigaException("Could not save container to filesystem");
@@ -186,5 +279,19 @@ class HashcodeContainer
         }
 
         return $return;
+    }
+    
+    /**
+     * Convert datafile container to hashcode container
+     *
+     * @return string
+     */
+    public function convertToHashcodeContainer() : bool
+    {
+        $this->loadFilesFromContainer()
+            ->addHashcodeFiles()
+        ;
+
+        return true;
     }
 }

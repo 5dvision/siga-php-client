@@ -318,13 +318,13 @@ class SigaClient
     /**
      * Upload hashcode container
      *
-     * @param string $fileString Base 64 encoded container
+     * @param string $fileString Container data
      *
      * @return string Container Id
      */
-    public function uploadHashcodeContainer(string $fileString) : string
+    public function uploadHashcodeContainer(string $fileContent) : string
     {
-        $response = $this->sigaApiClient->uploadContainer(base64_encode($fileString));
+        $response = $this->sigaApiClient->uploadContainer(base64_encode($fileContent));
 
         return $this->containerId = $response['containerId'];
     }
@@ -361,5 +361,71 @@ class SigaClient
     public function getSignatureInfo(string $signatureId)
     {
         return $this->sigaApiClient->getSignatureInfo($this->containerId, $signatureId);
+    }
+
+    /**
+     * Get Smart-ID certificate choice
+     *
+     * @param array $requestParams Request params
+     *
+     * @return array Response
+     */
+    public function getSmartIdCertificateChoice(array $requestParams) : array
+    {
+        if (!$this->containerId) {
+            throw new ContainerIdException();
+        }
+
+        return $this->sigaApiClient->getSmartIdCertificateChoice($this->containerId, $requestParams);
+    }
+
+    /**
+     * Get Smart ID certificate choice status
+     *
+     * @param string $certificate Certificate
+     *
+     * @return array Response
+     */
+    public function getSmartIdCertificateStatus(string $certificate): array
+    {
+        if (!$this->containerId) {
+            throw new ContainerIdException();
+        }
+
+        return $this->sigaApiClient->getSmartIdCertificateChoiceStatus($this->containerId, $certificate);
+    }
+
+    /**
+     * Start Smart-ID signing process
+     *
+     * @link @https://github.com/open-eid/SiGa/wiki/Hashcode-API-description#smart-id-signing
+     *
+     * @param array $requestParams Request params
+     *
+     * @return array Response
+     */
+    public function prepareSmartIdSigning(array $requestParams) : array
+    {
+        if (!$this->containerId) {
+            throw new ContainerIdException();
+        }
+        
+        return $this->sigaApiClient->startSmartIdSigning($this->containerId, $requestParams);
+    }
+
+    /**
+     * Get Smart-ID signing status
+     *
+     * @param string $signatureId Signature Id
+     *
+     * @return array Response
+     */
+    public function getSmartIdSigningStatus(string $signatureId) : array
+    {
+        if (!$this->containerId) {
+            throw new ContainerIdException();
+        }
+        
+        return $this->sigaApiClient->getSmartIdSigningStatus($this->containerId, $signatureId);
     }
 }
