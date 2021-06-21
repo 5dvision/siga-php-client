@@ -400,7 +400,7 @@ class SigaApiClient
         return $this->lastResponse;
     }
 
-	/**
+    /**
      * Get Smart-ID certificate choice
      *
      * @param string $containerId Container Id

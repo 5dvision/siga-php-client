@@ -65,26 +65,33 @@ class HashcodeContainer
         $zip = new \ZipArchive();
         $zip->open($this->filename);
         
-        return $zip->locateName('META-INF/hashcodes-sha256.xml') !== false;
+        $isHashcode = $zip->locateName('META-INF/hashcodes-sha256.xml') !== false;
+        
+        $zip->close();
+
+        return $isHashcode;
     }
     
     /**
      * Get hashcode container without data files
      *
-     * @return HashcodeContainer
+     * @return string
      */
-    public function getContainerWithoutFiles() : HashcodeContainer
+    public function getContainerWithoutFiles() : String
     {
+        $tempZipFile = tempnam(sys_get_temp_dir(), $this->filename);
+        copy($this->filename, $tempZipFile);
+
         $zip = new \ZipArchive();
-        $zip->open($this->filename);
+        $zip->open($tempZipFile);
 
         foreach ($this->files as $file) {
             $zip->deleteName($file->getName());
         }
 
         $zip->close();
-
-        return $this;
+        
+        return file_get_contents($tempZipFile);
     }
     
     /**
@@ -189,6 +196,32 @@ class HashcodeContainer
     }
 
     /**
+     * Add hascode datafiles to container
+     *
+     * @param array $files Files array to add to container
+     *
+     * @return HashcodeContainer
+     */
+    public function addDataFiles(array $files) : HashcodeContainer
+    {
+        foreach ($files as $file) {
+            $this->files[] = $file;
+        }
+
+        return $this;
+    }
+    
+    /**
+     * Get files
+     *
+     * @return array Files
+     */
+    public function getFiles() : array
+    {
+        return $this->files;
+    }
+
+    /**
      * Add hascode files to container
      *
      * @return HashcodeContainer
@@ -272,6 +305,10 @@ class HashcodeContainer
         foreach ($this->files as $hashcodeFile) {
             $zip->addFromString($hashcodeFile->getName(), $hashcodeFile->getContent());
         }
+        
+        $zip->deleteName('META-INF/hashcodes-sha256.xml');
+        $zip->deleteName('META-INF/hashcodes-sha512.xml');
+
         $return = $zip->close();
 
         if (!$return) {

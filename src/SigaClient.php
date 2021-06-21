@@ -185,9 +185,7 @@ class SigaClient
             throw new ContainerIdException();
         }
         
-        $response = $this->sigaApiClient->startMobileSigning($this->containerId, $requestParams);
-        
-        return $response;
+        return $this->sigaApiClient->startMobileSigning($this->containerId, $requestParams);
     }
     
     /**
@@ -258,7 +256,7 @@ class SigaClient
      *
      * @return void
      */
-    public function createContainerWithFiles(string $createdPath, string $sigaZipContainer, array $files) : void
+    public function createContainerWithFiles(string $sigaZipContainer, array $files) : void
     {
         $uploadDirectory = dirname(array_values($files)[0]);
 
