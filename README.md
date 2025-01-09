@@ -1,6 +1,6 @@
 # Signature Gateway PHP Client
 
-[![MIT Licensed](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE.md)
+[![MIT Licensed](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
 
 This is Signature Gateway([SiGa](https://github.com/open-eid/SiGa/wiki)) php client.
 

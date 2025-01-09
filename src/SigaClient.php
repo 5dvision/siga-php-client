@@ -5,9 +5,10 @@ namespace SigaClient;
 use SigaClient\Exception\ContainerIdException;
 use SigaClient\Exception\InvalidSigaParamException;
 use SigaClient\Exception\SigaApiResponseException;
-use SigaClient\Hashcode\HashcodeContainer;
+//use SigaClient\Hashcode\HashcodeContainer;
 use SigaClient\Hashcode\HashcodeDataFile;
 use SigaClient\Service\SigaApiClient;
+use ZipArchive;
 
 /**
  * SiGa Client
@@ -39,10 +40,10 @@ class SigaClient
     /**
      * SiGa adapter
      *
-     * @var \SigaApiClient
+     * @var SigaApiClient
      */
     private $sigaApiClient;
-    
+
     /**
      * Container extension bdoc or asice
      *
@@ -57,7 +58,7 @@ class SigaClient
     {
         $this->sigaApiClient = new SigaApiClient($options);
     }
-    
+
     /**
      * Public factory method to create instance of Client.
      *
@@ -75,12 +76,12 @@ class SigaClient
     {
         return new self($options);
     }
-    
+
     public function setExtension($ext)
     {
         $this->extension = $ext;
     }
-    
+
     /**
      * Set container id
      *
@@ -92,23 +93,24 @@ class SigaClient
     {
         $this->containerId = $containerId;
     }
-    
+
     /**
      * Create SiGa container
      *
      * @param string $type Container type
      * @param array $files Files
      *
-     * @throws InvalidSigaParamException
-     *
      * @return string Container Id
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
+     * @throws InvalidSigaParamException
      */
     public function createContainer(string $type, array $files) : string
     {
         if ($type === self::CONTAINER_TYPE_HASHCODE) {
             return $this->createHashcodeContainer($files);
         }
-        
+
         throw new InvalidSigaParamException("Unknown container type");
     }
 
@@ -118,6 +120,8 @@ class SigaClient
      * @param array $files Files
      *
      * @return string Container Id
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     private function createHashcodeContainer(array $files) : string
     {
@@ -125,32 +129,35 @@ class SigaClient
         foreach ($files as $file) {
             $body['dataFiles'][] = (new HashcodeDataFile($file['name'], $file['size'], $file['data']))->convert();
         }
-        
+
         $response = $this->sigaApiClient->createHascodeContainer($body);
-        
+
         return $this->containerId = $response['containerId'];
     }
-    
+
     /**
      * Get base 64 decoded container content
      *
-     * @return void
+     * @return string
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getContainer() : string
     {
         $response = $this->sigaApiClient->getContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
-        
+
         return base64_decode($response['container']);
     }
-    
+
     /**
      * Prepare signing process
      *
      * @param string $certicicateHex Certificate in hex format
      *
-     * @throws ContainerIdException If containerId is missing
+     * @return array Prepared parts
      *
-     * @return string Prepared parts
+     * @throws ContainerIdException If containerId is missing
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function prepareSigning(string $certicicateHex) : array
     {
@@ -159,9 +166,9 @@ class SigaClient
         if (!$this->containerId) {
             throw new ContainerIdException();
         }
-        
+
         $response = $this->sigaApiClient->startSigning($this->containerId, $certicicateHex);
-        
+
         return [
             'dataToSign' => $response['dataToSign'],
             'dataToSignHash' => base64_encode(hash($response['digestAlgorithm'], base64_decode($response['dataToSign']), true)),
@@ -169,7 +176,7 @@ class SigaClient
             'generatedSignatureId' => $response['generatedSignatureId'],
         ];
     }
-    
+
     /**
      * Start mobile signing process
      *
@@ -178,57 +185,64 @@ class SigaClient
      * @param array $requestParams Request params
      *
      * @return array Response
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function prepareMobileSigning(array $requestParams) : array
     {
         if (!$this->containerId) {
             throw new ContainerIdException();
         }
-        
+
         return $this->sigaApiClient->startMobileSigning($this->containerId, $requestParams);
     }
-    
+
     /**
      * Get mobile ID signing status
      *
      * @param string $signatureId Signature Id
      *
      * @return array Response
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getMobileSigningStatus(string $signatureId) : array
     {
         if (!$this->containerId) {
             throw new ContainerIdException();
         }
-        
+
         return $this->sigaApiClient->getMobileSigningStatus($this->containerId, $signatureId);
     }
-    
+
     /**
      * Finalize signing process
      *
      * @param string $signatureId Signature Id
      * @param string $signatureHex Signature in hex format
      *
-     * @throws ContainerIdException If containerId is missing
+     * @return array
      *
-     * @return Response
+     * @throws ContainerIdException If containerId is missing
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function finalizeSigning(string $signatureId, string $signatureHex) : array
     {
         if (!$this->containerId) {
             throw new ContainerIdException();
         }
-        
+
         return $this->sigaApiClient->finalizeContainerRemoteSigning($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId, $signatureId, $signatureHex);
     }
-    
+
     /**
      * End container flow
      *
      * @param array $files File names with paths
      *
      * @return void
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function endContainerFlow(array $files) : void
     {
@@ -240,12 +254,12 @@ class SigaClient
             ->addFilesToContainer($this->getContainer(), $files)
             ->saveContainerTo();
         */
-        
+
         $this->createContainerWithFiles($this->getContainer(), $files);
 
         $this->deleteContainer();
     }
-    
+
     /**
      * Create hascode container with files and save it to disk
      *
@@ -262,24 +276,25 @@ class SigaClient
 
         $containerName = $this->containerId . '.' . $this->extension;
         $containerWithFullPath = $uploadDirectory . '/' . $containerName;
-        
+
         //Lets save file to disk
         file_put_contents($containerWithFullPath, $sigaZipContainer);
- 
-        $zip = new \ZipArchive();
+
+        $zip = new ZipArchive();
         $zip->open($containerWithFullPath);
         foreach ($files as $filename => $path) {
             $zip->addFile($path, $filename);
         }
         $zip->close();
     }
-    
+
     /**
      * Validate container
      *
-     * @throws SigaApiResponseException If one of signatures is not valid
-     *
      * @return void
+     *
+     * @throws SigaApiResponseException If one of signatures is not valid
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     private function doContainerValidation() : void
     {
@@ -289,12 +304,14 @@ class SigaClient
             throw new SigaApiResponseException('One of signatures is not valid!');
         }
     }
-    
+
     /**
      * Get SIVA container validation report
      *
      *
      * @return array
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getContainerValidation() : array
     {
@@ -302,23 +319,27 @@ class SigaClient
 
         return $response['validationConclusion'];
     }
-    
+
     /**
-     * Delete SiGa containter
+     * Delete SiGa container
      *
      * @return void
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     private function deleteContainer() : void
     {
         $this->sigaApiClient->deleteContainer($this->containerId);
     }
-    
+
     /**
      * Upload hashcode container
      *
-     * @param string $fileString Container data
+     * @param string $fileContent Container data
      *
      * @return string Container Id
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function uploadHashcodeContainer(string $fileContent) : string
     {
@@ -326,11 +347,13 @@ class SigaClient
 
         return $this->containerId = $response['containerId'];
     }
-    
+
     /**
      * Get container data files
      *
      * @return array Files list
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getDataFilesList() : array
     {
@@ -343,6 +366,8 @@ class SigaClient
      * Get container signatures
      *
      * @return array Signatures list
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getSignaturesList()
     {
@@ -350,11 +375,13 @@ class SigaClient
 
         return $response['signatures'];
     }
-    
+
     /**
      * Get signature info
      *
      * @return array Signature info
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getSignatureInfo(string $signatureId)
     {
@@ -367,6 +394,8 @@ class SigaClient
      * @param array $requestParams Request params
      *
      * @return array Response
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getSmartIdCertificateChoice(array $requestParams) : array
     {
@@ -383,6 +412,8 @@ class SigaClient
      * @param string $certificate Certificate
      *
      * @return array Response
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getSmartIdCertificateStatus(string $certificate): array
     {
@@ -401,13 +432,15 @@ class SigaClient
      * @param array $requestParams Request params
      *
      * @return array Response
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function prepareSmartIdSigning(array $requestParams) : array
     {
         if (!$this->containerId) {
             throw new ContainerIdException();
         }
-        
+
         return $this->sigaApiClient->startSmartIdSigning($this->containerId, $requestParams);
     }
 
@@ -417,13 +450,15 @@ class SigaClient
      * @param string $signatureId Signature Id
      *
      * @return array Response
+     *
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getSmartIdSigningStatus(string $signatureId) : array
     {
         if (!$this->containerId) {
             throw new ContainerIdException();
         }
-        
+
         return $this->sigaApiClient->getSmartIdSigningStatus($this->containerId, $signatureId);
     }
 }

@@ -46,7 +46,7 @@ class Hashcode
     /**
      * Get hash type name based value
      *
-     * @param string $hash Hash
+     * @param string $type Hash
      *
      * @return string|null Hash type name
      */
@@ -71,7 +71,7 @@ class Hashcode
         if (!in_array($type, array_keys(self::$shaTypes))) {
             return null;
         }
-        
+
         return self::$shaTypes[$type]['bits'] / 8;
     }
 }

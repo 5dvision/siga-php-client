@@ -28,7 +28,7 @@ class SigaGuzzleClient extends Guzzle
         $stack->push(Middleware::mapRequest(function (RequestInterface $request) {
             return $request->withHeader('X-Authorization-Timestamp', time());
         }));
-        
+
         $stack->push(Middleware::mapRequest(function (RequestInterface $request) use ($sigaOptions) {
             return $request->withHeader('X-Authorization-ServiceUUID', $sigaOptions['uuid']);
         }));
@@ -38,10 +38,10 @@ class SigaGuzzleClient extends Guzzle
 
             $signature  = $headers['X-Authorization-ServiceUUID'][0].':';
             $signature .= $headers['X-Authorization-Timestamp'][0].':';
-            $signature .= (string)$request->getMethod().':';
-            $signature .= (string)$request->getUri()->getPath().':';
-            $signature .= (string)$request->getBody();
-            
+            $signature .= $request->getMethod() .':';
+            $signature .= $request->getUri()->getPath() .':';
+            $signature .= $request->getBody();
+
             return $request->withHeader('X-Authorization-Signature', hash_hmac('sha256', $signature, $sigaOptions['secret']));
         }));
 
