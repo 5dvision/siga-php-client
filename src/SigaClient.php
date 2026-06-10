@@ -146,7 +146,7 @@ class SigaClient
     {
         $response = $this->sigaApiClient->getContainer($this->sigaApiClient::HASHCODE_ENDPOINT, $this->containerId);
 
-        return base64_decode($response['container']);
+        return base64_decode((string) $response['container']);
     }
 
     /**
@@ -171,7 +171,7 @@ class SigaClient
 
         return [
             'dataToSign' => $response['dataToSign'],
-            'dataToSignHash' => base64_encode(hash($response['digestAlgorithm'], base64_decode($response['dataToSign']), true)),
+            'dataToSignHash' => base64_encode(hash((string) $response['digestAlgorithm'], base64_decode((string) $response['dataToSign']), true)),
             'digestAlgorithm' => $response['digestAlgorithm'],
             'generatedSignatureId' => $response['generatedSignatureId'],
         ];
@@ -272,7 +272,7 @@ class SigaClient
      */
     public function createContainerWithFiles(string $sigaZipContainer, array $files) : void
     {
-        $uploadDirectory = dirname(array_values($files)[0]);
+        $uploadDirectory = dirname((string) array_values($files)[0]);
 
         $containerName = $this->containerId . '.' . $this->extension;
         $containerWithFullPath = $uploadDirectory . '/' . $containerName;
