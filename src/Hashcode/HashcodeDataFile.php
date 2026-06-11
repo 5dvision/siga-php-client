@@ -5,34 +5,12 @@ namespace SigaClient\Hashcode;
 class HashcodeDataFile
 {
     /**
-     * Filename.
-     *
-     * @var string
-     */
-    private $fileName;
-    
-    /**
-     * Filesize.
-     *
-     * @var int
-     */
-    private $fileSize;
-    
-    /**
-     * Filedata.
-     *
-     * @var string
-     */
-    private $fileData;
-    
-    
-    /**
      * File sha256 hash.
      *
      * @var string
      */
     private $fileHash256;
-    
+
     /**
      * File sha512 hash.
      *
@@ -49,18 +27,17 @@ class HashcodeDataFile
      *
      * @return void
      */
-    public function __construct(string $fileName, int $fileSize, string $fileData)
-    {
-        $this->fileName = $fileName;
-        $this->fileSize = $fileSize;
-        $this->fileData = $fileData;
-
+    public function __construct(
+        private readonly string $fileName,
+        private readonly int $fileSize,
+        private readonly string $fileData
+    ) {
         $hashToSign = new HashToSign($this->fileData);
 
         $this->fileHash256 = $hashToSign->calculateHash('sha256')->getHashInBase64();
         $this->fileHash512 = $hashToSign->calculateHash('sha512')->getHashInBase64();
     }
-    
+
     /**
      * Get filename
      *
@@ -80,7 +57,7 @@ class HashcodeDataFile
     {
         return $this->fileSize;
     }
-    
+
     /**
      * Get file content
      *
@@ -90,7 +67,7 @@ class HashcodeDataFile
     {
         return $this->fileData;
     }
-    
+
     /**
      * Get file sha256 hash
      *

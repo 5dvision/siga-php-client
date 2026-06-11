@@ -25,13 +25,9 @@ class SigaGuzzleClient extends Guzzle
         $stack = new HandlerStack();
         $stack->setHandler(new CurlHandler());
 
-        $stack->push(Middleware::mapRequest(function (RequestInterface $request) {
-            return $request->withHeader('X-Authorization-Timestamp', time());
-        }));
+        $stack->push(Middleware::mapRequest(fn(RequestInterface $request) => $request->withHeader('X-Authorization-Timestamp', time())));
 
-        $stack->push(Middleware::mapRequest(function (RequestInterface $request) use ($sigaOptions) {
-            return $request->withHeader('X-Authorization-ServiceUUID', $sigaOptions['uuid']);
-        }));
+        $stack->push(Middleware::mapRequest(fn(RequestInterface $request) => $request->withHeader('X-Authorization-ServiceUUID', $sigaOptions['uuid'])));
 
         $stack->push(Middleware::mapRequest(function (RequestInterface $request) use ($sigaOptions) {
             $headers = $request->getHeaders();
@@ -42,12 +38,10 @@ class SigaGuzzleClient extends Guzzle
             $signature .= $request->getUri()->getPath() .':';
             $signature .= $request->getBody();
 
-            return $request->withHeader('X-Authorization-Signature', hash_hmac('sha256', $signature, $sigaOptions['secret']));
+            return $request->withHeader('X-Authorization-Signature', hash_hmac('sha256', $signature, (string) $sigaOptions['secret']));
         }));
 
-        $stack->push(Middleware::mapRequest(function (RequestInterface $request) {
-            return $request->withHeader('X-Authorization-Hmac-Algorithm', 'HmacSHA256');
-        }));
+        $stack->push(Middleware::mapRequest(fn(RequestInterface $request) => $request->withHeader('X-Authorization-Hmac-Algorithm', 'HmacSHA256')));
 
         parent::__construct([
             'base_uri' => $sigaOptions['url'],

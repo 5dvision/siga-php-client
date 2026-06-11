@@ -10,13 +10,6 @@ class HashToSign
      * @var string
      */
     private $hash;
-    
-    /**
-     * Content from to create hash.
-     *
-     * @var string
-     */
-    private $content;
 
 
     /**
@@ -24,10 +17,9 @@ class HashToSign
      *
      * @param string $content String to create hash from
      */
-    public function __construct(string $content)
-    {
-        $this->content = $content;
-    }
+    public function __construct(
+        private readonly string $content,
+    ) {}
 
     /**
      * Get Base 64encoded result from hash
@@ -38,7 +30,7 @@ class HashToSign
     {
         return base64_encode($this->hash);
     }
-    
+
     /**
      * Calculate hash
      *
@@ -52,7 +44,7 @@ class HashToSign
 
         return $this;
     }
-    
+
 
     /**
      * Get hashed string
@@ -64,7 +56,7 @@ class HashToSign
     public function getHash(string $algo) : string
     {
         $this->calculateHash($algo);
-        
+
         return $this->hash;
     }
 }

@@ -9,13 +9,6 @@ use ZipArchive;
 class HashcodeContainer
 {
     /**
-     * Filename.
-     *
-     * @var string
-     */
-    private $filename;
-
-    /**
      * Container data.
      *
      * @var string
@@ -36,10 +29,8 @@ class HashcodeContainer
      *
      * @return HashcodeContainer
      */
-    public function __construct(string $filename)
+    public function __construct(private readonly string $filename)
     {
-        $this->filename = $filename;
-
         return $this;
     }
 
@@ -142,7 +133,7 @@ class HashcodeContainer
      */
     private function isDataFile(string $filename) : bool
     {
-        return $filename !== 'mimetype' && strpos($filename, 'META-INF/') !== 0;
+        return $filename !== 'mimetype' && !str_starts_with($filename, 'META-INF/');
     }
 
     /**
